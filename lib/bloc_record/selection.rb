@@ -10,4 +10,11 @@ module Selection
     data = Hash[columns.zip(row)]
     new(data)
   end
+
+  def find_by(attribute, value)
+    rows = connection.execute <<-SQL
+      SELECT * FROM #{table}
+      WHERE #{attribute} = #{value};
+    SQL
+  end
 end

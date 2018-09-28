@@ -10,6 +10,13 @@ module BlocRecord
       string.downcase
     end
 
+    def snake_to_camel(snake_str)
+      str = snake_str.gsub(/([a-zA-Z]+)/) do |s|
+        s.capitalize!
+      end
+      str.gsub!(/(_)/, '')
+    end
+
     def sql_strings(value)
       case value
       when String
