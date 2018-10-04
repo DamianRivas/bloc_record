@@ -15,6 +15,8 @@ module Selection
   end
 
   def find_one(id)
+    raise 'Negative id not allowed' if id < 1
+
     row = connection.get_first_row <<-SQL
       SELECT #{columns.join ','} FROM #{table}
       WHERE id = #{id};
@@ -28,6 +30,8 @@ module Selection
       SELECT #{columns.join ","} FROM #{table}
       WHERE #{attribute} = #{BlocRecord::Utility.sql_strings(value)};
     SQL
+
+    rows_to_array(rows)
   end
 
   def take_one
@@ -64,6 +68,59 @@ module Selection
     SQL
 
     rows_to_array(rows)
+  end
+
+  def method_missing(methId, *args)
+    meth = methId.to_s
+    if meth.index('find_by_') == 0
+      attribute = meth.slice(8..-1)
+      value = args[1] ? nil : args[0]
+
+      super unless value
+
+      rows = connection.execute <<-SQL
+        SELECT #{columns.join ","} FROM #{table}
+        WHERE #{attribute} = #{BlocRecord::Utility.sql_strings(value)};
+      SQL
+
+      rows_to_array(rows)
+    else
+      super
+    end
+  end
+
+  def find_each(&block)
+    rows = connection.execute <<-SQL
+      SELECT #{columns.join ","} FROM #{table}
+      ORDER BY id ASC LIMIT 1;
+    SQL
+
+    rows_to_array(rows).each do |row|
+      yield(row)
+    end
+  end
+
+  def find_each(start, batch_size, &block)
+    rows = connection.execute <<-SQL
+      SELECT #{columns.join ","} FROM #{table}
+      LIMIT #{batch_size} OFFSET #{start}
+      ORDER BY id ASC;
+    SQL
+
+    rows_to_array(rows).each do |row|
+      yield(row)
+    end
+  end
+
+  def find_in_batches(start, batch_size=1000, &block)
+    rows = connection.execute <<-SQL
+      SELECT #{columns.join ","} FROM #{table}
+      LIMIT #{batch_size} OFFSET #{start}
+      ORDER BY id ASC;
+    SQL
+
+    rows = rows_to_array(rows)
+    yield(rows, batch_size)
   end
 
   private
