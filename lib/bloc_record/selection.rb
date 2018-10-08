@@ -92,7 +92,7 @@ module Selection
   def find_each(&block)
     rows = connection.execute <<-SQL
       SELECT #{columns.join ","} FROM #{table}
-      ORDER BY id ASC LIMIT 1;
+      ORDER BY id ASC;
     SQL
 
     rows_to_array(rows).each do |row|
@@ -100,7 +100,7 @@ module Selection
     end
   end
 
-  def find_each(start, batch_size, &block)
+  def find_each(start=1, batch_size=1000, &block)
     rows = connection.execute <<-SQL
       SELECT #{columns.join ","} FROM #{table}
       LIMIT #{batch_size} OFFSET #{start}
@@ -112,15 +112,18 @@ module Selection
     end
   end
 
-  def find_in_batches(start, batch_size=1000, &block)
-    rows = connection.execute <<-SQL
-      SELECT #{columns.join ","} FROM #{table}
-      LIMIT #{batch_size} OFFSET #{start}
-      ORDER BY id ASC;
-    SQL
-
-    rows = rows_to_array(rows)
-    yield(rows, batch_size)
+  def find_in_batches(start=1, batch_size=1000, &block)
+    loop do
+      rows = connection.execute <<-SQL
+        SELECT #{columns.join ","} FROM #{table}
+        LIMIT #{batch_size} OFFSET #{start}
+        ORDER BY id ASC;
+      SQL
+      rows = rows_to_array(rows)
+      yield(rows)
+      break if rows.size < batch_size
+      start += batch_size
+    end
   end
 
   private
