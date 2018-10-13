@@ -91,9 +91,15 @@ module Selection
 
   def order(*args)
     if args.count > 1
-      order = args.join(",")
+      order = args.map do |arg|
+        arg = BlocRecord::Utility.stringify_hash(arg) if arg.is_a?(Hash)
+        arg
+      end
+      order = order.join(",")
     else
-      order = args.first.to_s
+      arg = args.first
+      order = BlocRecord::Utility.stringify_hash(arg) if arg.is_a?(Hash)
+      order = order.to_s
     end
 
     rows = connection.execute <<-SQL
@@ -107,18 +113,27 @@ module Selection
     if args.count > 1
       joins = args.map { |arg| "INNER JOIN #{arg} ON #{arg}.#{table}_id = #{table}.id" }.join(" ")
       rows = connection.execute <<-SQL
-        SELECT * FROM #{table} #{joins}
+        SELECT * FROM #{table} #{joins};
       SQL
     else
       case args.first
       when String
         rows = connection.execute <<-SQL
-          SELECT * FROM #{table} #{BlocRecord::Utility.sql_strings(arg)};
+          SELECT * FROM #{table} #{BlocRecord::Utility.sql_strings(args.first)};
         SQL
       when Symbol
         rows = connection.execute <<-SQL
           SELECT * FROM #{table}
-          INNER JOIN #{arg} ON #{arg}.#{table}_id = #{table}.id
+          INNER JOIN #{args.first} ON #{args.first}.#{table}_id = #{table}.id;
+        SQL
+      when Hash
+        hash = BlocRecord::Utility.convert_keys(args.first)
+        second_table = hash.keys[0]
+        third_table = hash[second_table]
+        rows = connection.execute <<-SQL
+          SELECT * FROM #{table}
+          INNER JOIN #{second_table} ON #{second_table}.#{table}_id = #{table}.id
+          INNER JOIN #{third_table} ON #{third_table}.#{second_table}_id = #{third_table}.id;
         SQL
       end
     end

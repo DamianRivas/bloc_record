@@ -36,5 +36,11 @@ module BlocRecord
         dirty_obj.instance_variable_set(instance_variable, persisted_obj.instance_variable_get(instance_variable))
       end
     end
+
+    def stringify_hash(hash)
+      string_array = []
+      hash.each { |key, val| string_array << "#{key} #{val}" }
+      string_array.join(",")
+    end
   end
 end
