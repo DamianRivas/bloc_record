@@ -70,6 +70,8 @@ module Selection
     if args.count > 1
       expression = args.shift
       params = args
+    elsif args.count == 0
+      return self.all
     else
       case args.first
       when String

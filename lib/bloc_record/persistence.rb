@@ -53,28 +53,64 @@ module Persistence
     end
 
     def update(ids, updates)
-      updates = BlocRecord::Utility.convert_keys(updates)
-      updates.delete "id"
-      updates_array = updates.map { |key, value| "#{key}=#{BlocRecord::Utility.sql_strings(value)}" }
+      case updates
+      when Hash
+        build_updates_array(updates)
 
-      if ids.class == Fixnum
-        where_clause = "WHERE id = #{ids};"
-      elsif ids.class == Array
-        where_clause = ids.empty? ? ";" : "WHERE id IN (#{ids.join(",")});"
-      else
-        where_clause = ";"
+        if ids.class == Fixnum
+          where_clause = "WHERE id = #{ids};"
+        elsif ids.class == Array
+          where_clause = ids.empty? ? ";" : "WHERE id IN (#{ids.join(",")});"
+        else
+          where_clause = ";"
+        end
+
+        connection.execute <<-SQL
+          UPDATE #{table}
+          SET #{updates_array * ","} #{where_clause}
+        SQL
+      when Array
+        raise "size of 'ids' must match size of 'updates' when 'updates' is of class Array." if ids.size != updates.size
+
+        updates.each do |update, index|
+          updates_array = build_updates_array(update)
+
+          connection.execute <<-SQL
+            UPDATE #{table}
+            SET #{updates_array * ","} WHERE id = #{ids[index]};
+          SQL
+        end
       end
-
-      connection.execute <<-SQL
-        UPDATE #{table}
-        SET #{updates_array * ","} #{where_clause}
-      SQL
 
       true
     end
 
     def update_all(updates)
       update(nil, updates)
+    end
+  end
+
+  private
+
+  def build_updates_array(hash)
+    hash = BlocRecord::Utility.convert_keys(hash)
+    hash.delete "id"
+    hash_array = hash.map { |key, value| "#{key}=#{BlocRecord::Utility.sql_strings(value)}" }
+  end
+
+  def method_missing(method_id, *args)
+    method_name = method_id.to_s
+    if method_name.index('update_') == 0
+      attribute = method_name.slice(7..-1)
+      value = args[1] ? nil : args[0]
+
+      unless value
+        raise "Unexpected number of arguments for #{method_id}. Expected 1, got #{args.size}."
+      end
+
+      self.update_attribute(attribute, value)
+    else
+      super
     end
   end
 end
