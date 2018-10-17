@@ -71,7 +71,7 @@ module Selection
       expression = args.shift
       params = args
     elsif args.count == 0
-      return self.all
+      return self.take_one
     else
       case args.first
       when String
@@ -139,7 +139,7 @@ module Selection
 
   def rows_to_array(rows)
     collection = BlocRecord::Collection.new
-    rows.each { |row| collection << new(Hash[columns.zip(row)]) }
+    rows.each { |row| collection << self.new(Hash[columns.zip(row)]) }
     collection
   end
 end

@@ -9,22 +9,62 @@ module BlocRecord
       slice(0, limit)
     end
 
-    def where(arg)
-      collection = BlocRecord::Collection.new
+    def where(*args)
+      return self unless any?
 
-      expression_hash = BlocRecord::Utility.convert_keys(arg)
-      keys = expression_hash.keys
-      values = expression_hash.values
+      ids = map(&:id)
 
-      if any?
-        each do |record|
-          if record
-        end
+      if args.count > 1
+        expression = args.shift
+        params = args
+      elsif args.count == 0
+        return self
       else
-        false
+        case args.first
+        when String
+          expression = args.first
+        when Hash
+          expression_hash = BlocRecord::Utility.convert_keys(args.first)
+          expression = expression_hash.map { |key, _value| "#{key} = ?" }.join(' and ')
+          params = args.first.values
+        end
+      end
+
+      expression = "id IN (#{ids.join(',')}) AND #{expression}"
+
+      if params
+        first.class.where(expression, *params)
+      else
+        first.class.where(expression)
       end
     end
 
-    def not(*args); end
+    def not(*args)
+      return nil unless any?
+
+      ids = map(&:id)
+
+      if args.count > 1
+        expression = "NOT (#{args.shift})"
+        params = args
+      elsif args.count == 0
+        return nil
+      else
+        case args.first
+        when String
+          expression = "NOT (#{args.first})"
+        when Hash
+          expression_hash = BlocRecord::Utility.convert_keys(args.first)
+          expression = expression_hash.map { |key, _value| "#{key} != ?" }.join(' and ')
+          params = args.first.values
+        end
+      end
+
+      if params
+        first.class.where(expression, *params)
+      else
+        first.class.where(expression)
+      end
+    end
   end
 end

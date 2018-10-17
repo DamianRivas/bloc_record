@@ -55,7 +55,7 @@ module Persistence
     def update(ids, updates)
       case updates
       when Hash
-        build_updates_array(updates)
+        updates_array = build_updates_array(updates)
 
         if ids.class == Fixnum
           where_clause = "WHERE id = #{ids};"
@@ -70,6 +70,7 @@ module Persistence
           SET #{updates_array * ","} #{where_clause}
         SQL
       when Array
+        raise "'ids' must also be an array if 'updates' is an array" if ids.class == Fixnum
         raise "size of 'ids' must match size of 'updates' when 'updates' is of class Array." if ids.size != updates.size
 
         updates.each do |update, index|
@@ -88,15 +89,17 @@ module Persistence
     def update_all(updates)
       update(nil, updates)
     end
+
+    private
+
+    def build_updates_array(hash)
+      hash = BlocRecord::Utility.convert_keys(hash)
+      hash.delete "id"
+      hash_array = hash.map { |key, value| "#{key}=#{BlocRecord::Utility.sql_strings(value)}" }
+    end
   end
 
   private
-
-  def build_updates_array(hash)
-    hash = BlocRecord::Utility.convert_keys(hash)
-    hash.delete "id"
-    hash_array = hash.map { |key, value| "#{key}=#{BlocRecord::Utility.sql_strings(value)}" }
-  end
 
   def method_missing(method_id, *args)
     method_name = method_id.to_s
