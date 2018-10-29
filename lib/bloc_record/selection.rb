@@ -5,7 +5,7 @@ module Selection
     if ids.length == 1
       find_one(ids.first)
     else
-      rows = connection.execute <<-SQL
+      rows = query <<-SQL
         SELECT #{columns.join ','} FROM #{table}
         WHERE id IN (#{ids.join(',')});
       SQL
@@ -15,51 +15,55 @@ module Selection
   end
 
   def find_one(id)
-    row = connection.get_first_row <<-SQL
+    row = query <<-SQL
       SELECT #{columns.join ','} FROM #{table}
       WHERE id = #{id};
     SQL
 
-    init_object_from_row(row)
+    rows_to_array(row)
   end
 
   def find_by(attribute, value)
-    rows = connection.execute <<-SQL
+    rows = query <<-SQL
       SELECT #{columns.join ","} FROM #{table}
       WHERE #{attribute} = #{BlocRecord::Utility.sql_strings(value)};
     SQL
+
+    rows_to_array(rows)
   end
 
   def take_one
-    row = connection.get_first_row <<-SQL
+    row = query <<-SQL
       SELECT #{columns.join ","} FROM #{table}
       ORDER BY random()
       LIMIT 1;
     SQL
 
-    init_object_from_row(row)
+    rows_to_array(row)
   end
 
   def first
-    row = connection.get_first_row <<-SQL
+    # puts "Columns: [#{columns.join ","}]"
+    # puts "TABLE: #{table}"
+    row = query <<-SQL
       SELECT #{columns.join ","} FROM #{table}
       ORDER BY id ASC LIMIT 1;
     SQL
 
-    init_object_from_row(row)
+    rows_to_array(row)
   end
 
   def last
-    row = connection.get_first_row <<-SQL
+    row = query <<-SQL
       SELECT #{columns.join ","} FROM #{table}
       ORDER BY id DESC LIMIT 1;
     SQL
 
-    init_object_from_row(row)
+    rows_to_array(row)
   end
 
   def all
-    rows = connection.execute <<-SQL
+    rows = query <<-SQL
       SELECT #{columns.join ","} FROM #{table};
     SQL
 
@@ -85,7 +89,7 @@ module Selection
       WHERE #{expression};
     SQL
 
-    rows = connection.execute(sql, params)
+    rows = query(sql, params)
     rows_to_array(rows)
   end
 
@@ -96,7 +100,7 @@ module Selection
       order = args.first.to_s
     end
 
-    rows = connection.execute <<-SQL
+    rows = query <<-SQL
       SELECT * FROM #{table}
       ORDER BY #{order};
     SQL
@@ -106,17 +110,17 @@ module Selection
   def join(*args)
     if args.count > 1
       joins = args.map { |arg| "INNER JOIN #{arg} ON #{arg}.#{table}_id = #{table}.id" }.join(" ")
-      rows = connection.execute <<-SQL
+      rows = query <<-SQL
         SELECT * FROM #{table} #{joins}
       SQL
     else
       case args.first
       when String
-        rows = connection.execute <<-SQL
+        rows = query <<-SQL
           SELECT * FROM #{table} #{BlocRecord::Utility.sql_strings(arg)};
         SQL
       when Symbol
-        rows = connection.execute <<-SQL
+        rows = query <<-SQL
           SELECT * FROM #{table}
           INNER JOIN #{arg} ON #{arg}.#{table}_id = #{table}.id
         SQL
@@ -137,7 +141,13 @@ module Selection
 
   def rows_to_array(rows)
     collection = BlocRecord::Collection.new
-    rows.each { |row| collection << new(Hash[columns.zip(row)]) }
+    rows.each do |row|
+      if BlocRecord.platform == "pg"
+        row['id'] = row['id'].to_i if row['id']
+        row = row.values
+      end
+      collection << new(Hash[columns.zip(row)])
+    end
     collection
   end
 end
